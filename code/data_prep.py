@@ -7,16 +7,18 @@
 
 import os
 import pandas as pd
+import geopandas as gpd
 import pysal as ps
 import numpy as np
-@TODO: Finish Doc strings
-@TODO: Cleanup file
+import libpysal as lps
+# @TODO: Finish Doc strings
+# @TODO: Cleanup file
 
 
 pd.set_option("chained_assignment", None)
 
-path = os.getcwd()
-# path = os.path.dirname(os.getcwd()) # if running from the 'code' directory
+# path = os.getcwd()
+path = os.path.dirname(os.getcwd()) # if running from the 'code' directory
 outPath=os.path.join(path,'data')
 ipath = os.path.join(path,'data','input')
 spath = os.path.join(path,'data','spatial')
@@ -135,8 +137,19 @@ se_cols = [i for i in db.columns if i[-1] == 's' and i[0] == 'A']
 db[se_cols] *= (1.65 / 1.645)
 
 # calculate weights matrix
-w = ps.queen_from_shapefile(os.path.join(spath, 'USA_Counties_500k.shp'),
-                            idVariable='geoFIPS')
+# w = ps.queen_from_shapefile(os.path.join(spath, 'USA_Counties_500k.shp'), 
+#                             idVariable='geoFIPS')
+# queen_from_shapefile is OUTDATED. New version below?
+# w = libpysal.weights.Queen.from_dataframe(os.path.join(spath, 'USA_Counties_500k.shp'), 
+                            # idVariable='geoFIPS')
+# w = ps.lib.io.weights.Queen.from_dataframe(polygons = os.path.join(spath, 'USA_Counties_500k.shp'), 
+                            # ids = 'geoFIPS')
+gdf = gpd.read_file(os.path.join(spath, 'USA_Counties_500k.shp'))
+
+w = lps.weights.Queen.from_shapefile(os.path.join(spath, 'USA_Counties_500k.shp'))
+    #os.path.join(spath, 'USA_Counties_500k.shp')) 
+#                            ids = 'geoFIPS')
+
 w.transform = 'R'
 
 # output dataframe
@@ -177,8 +190,7 @@ db1['BLACK_ACS'] = db.ACS12_5yr_B03002004 / (db.ACS12_5yr_B03002001 * 1.)
 db1['QNATAM_ACS'] = db.ACS12_5yr_B03002005 / (db.ACS12_5yr_B03002001 * 1.)
 db1['QASIAN_ACS'] = db.ACS12_5yr_B03002006 / (db.ACS12_5yr_B03002001 * 1.)
 db1['QHISP_ACS'] = db.ACS12_5yr_B03002012 / (db.ACS12_5yr_B03002001 * 1.)
-db1['QAGEDEP_ACS'] = (db.ACS12_5yr_B06001002 +
-                      db.ACS12_5yr_B09020001) / (db.ACS12_5yr_B01003001 * 1.)
+db1['QAGEDEP_ACS'] = (db.ACS12_5yr_B06001002 + db.ACS12_5yr_B09020001) / (db.ACS12_5yr_B01003001 * 1.)
 db1['QPUNIT_ACS'] = db.ACS12_5yr_B25008001 / (db.ACS12_5yr_B25002002 * 1.)
 db1['PRENTER_ACS'] = db.ACS12_5yr_B25003003 / (db.ACS12_5yr_B25002001 * 1.)
 db1['QNRRES_ACS'] = db.ACS12_5yr_B09020021 / (db.ACS12_5yr_B01003001 * 1.)
@@ -196,8 +208,7 @@ db1['QESL'] = ((db.ACS12_5yr_B16004029 + db.ACS12_5yr_B16004030 +
                 db.ACS12_5yr_B16004056 + db.ACS12_5yr_B16004057 +
                 db.ACS12_5yr_B16004061 + db.ACS12_5yr_B16004062 +
                 db.ACS12_5yr_B16004066 + db.ACS12_5yr_B16004067) * 1.) / \
-              ((db.ACS12_5yr_B16004024 + db.ACS12_5yr_B16004046) -
-               (db.ACS12_5yr_B16004025 + db.ACS12_5yr_B16004047))
+              ((db.ACS12_5yr_B16004024 + db.ACS12_5yr_B16004046) - (db.ACS12_5yr_B16004025 + db.ACS12_5yr_B16004047))
 db1.QESL = db1.QESL.replace([np.inf, -np.inf, np.nan], 0)
 db1.QESL = db1.QESL.replace([np.inf, -np.inf], 0)
 db1['QCVLUN'] = ((db.ACS12_5yr_B23022025 + db.ACS12_5yr_B23022049) * 1.) / \
@@ -257,7 +268,7 @@ db1['POPDENS'] = db.ACS12_5yr_B01003001 / (db.SE_T02A_002 * 1.)
 # if no home value, assign the spatial lag of the estimate and SE
 homeval = db1['MHSEVAL_ALT'].copy()
 homeval_se = db.ACS12_5yr_B25077001s.copy()
-dbf = ps.open(os.path.join(spath, 'USA_Counties_500k.dbf'))
+dbf = lps.io.open(os.path.join(spath, 'USA_Counties_500k.dbf'))
 
 # Rename dbf GEOIDs to match homeval
 geoid = dbf.by_col('geoFIPS')
@@ -265,17 +276,17 @@ geoid = dbf.by_col('geoFIPS')
 shp_fips = pd.DataFrame(dbf.by_col('geoFIPS'), index=geoid)
 shp_fips = shp_fips.join(homeval)
 shp_fips = shp_fips.join(homeval_se)
-shp_fips['MHSEVAL_ALT_LAG'] = ps.lag_spatial(w, shp_fips.MHSEVAL_ALT)
-shp_fips['MHSEVAL_ALT_LAG_SE'] = ps.lag_spatial(w, shp_fips.ACS12_5yr_B25077001s)
+shp_fips['MHSEVAL_ALT_LAG'] = lps.weights.lag_spatial(w, shp_fips.MHSEVAL_ALT)
+shp_fips['MHSEVAL_ALT_LAG_SE'] = lps.weights.lag_spatial(w, shp_fips.ACS12_5yr_B25077001s)
 
-mh = shp_fips.ix[shp_fips.MHSEVAL_ALT_LAG == 0].MHSEVAL_ALT.tolist()
+mh = shp_fips.loc[shp_fips.MHSEVAL_ALT_LAG == 0].MHSEVAL_ALT.tolist()
 
 # Reassign values to MHSEVAL_ALT_LAG
-shp_fips.ix[shp_fips.MHSEVAL_ALT_LAG == 0, 'MHSEVAL_ALT_LAG'] = mh
+shp_fips.loc[shp_fips.MHSEVAL_ALT_LAG == 0, 'MHSEVAL_ALT_LAG'] = mh
 
 # Reassign missing standard error values
-mhs = shp_fips.ix[shp_fips.MHSEVAL_ALT_LAG_SE == 0].ACS12_5yr_B25077001s.tolist()
-shp_fips.ix[shp_fips.MHSEVAL_ALT_LAG_SE == 0, 'MHSEVAL_ALT_LAG_SE'] = mhs
+mhs = shp_fips.loc[shp_fips.MHSEVAL_ALT_LAG_SE == 0].ACS12_5yr_B25077001s.tolist()
+shp_fips.loc[shp_fips.MHSEVAL_ALT_LAG_SE == 0, 'MHSEVAL_ALT_LAG_SE'] = mhs
 
 # Get rid of nan values - reassign MHSEVAL_ALT(_SE)
 shp_fips.MHSEVAL_ALT_LAG[np.isnan(shp_fips.MHSEVAL_ALT_LAG)] = \
@@ -310,12 +321,10 @@ db1['QPUNIT_ACS_SE'] = se_ratio(db1.QPUNIT_ACS, db.ACS12_5yr_B25002002,
                                 db.ACS12_5yr_B25008001s, db.ACS12_5yr_B25002002s)
 db1['PRENTER_ACS_SE'] = se_prop(db1.PRENTER_ACS, db.ACS12_5yr_B25002001,
                                 db.ACS12_5yr_B25003003s, db.ACS12_5yr_B25002001s)
-db1['QNRRES_ACS_SE'] = se_prop(db1.QNRRES_ACS, db.ACS12_5yr_B01003001,
-                               db.ACS12_5yr_B09020021s, db.ACS12_5yr_B01003001s)
+db1['QNRRES_ACS_SE'] = se_prop(db1.QNRRES_ACS, db.ACS12_5yr_B01003001,db.ACS12_5yr_B09020021s, db.ACS12_5yr_B01003001s)
 db1['QFEMALE_ACS_SE'] = se_prop(db1.QFEMALE_ACS, db.ACS12_5yr_B01003001,
                                 db.ACS12_5yr_B01001026s, db.ACS12_5yr_B01003001s)
-db1['QFHH_ACS_SE'] = se_prop(db1.QFHH_ACS, db.ACS12_5yr_B11001001,
-                             db.ACS12_5yr_B11001006s, db.ACS12_5yr_B11001001s)
+db1['QFHH_ACS_SE'] = se_prop(db1.QFHH_ACS, db.ACS12_5yr_B11001001,db.ACS12_5yr_B11001006s, db.ACS12_5yr_B11001001s)
 db1['QUNOCCHU_ACS_SE'] = se_prop(db1.QUNOCCHU_ACS, db.ACS12_5yr_B25002001,
                                  db.ACS12_5yr_B25002003s, db.ACS12_5yr_B25002001s)
 
@@ -323,40 +332,20 @@ db1['QUNOCCHU_ACS_SE'] = se_prop(db1.QUNOCCHU_ACS, db.ACS12_5yr_B25002001,
 db1['PERCAP_SE'] = se_ratio(db1.PERCAP, db.ACS12_5yr_B01003001,
                             db.ACS12_5yr_B19025001s, db.ACS12_5yr_B01003001s)
 
-QESL_sen = se_sum(db.ACS12_5yr_B16004029s, db.ACS12_5yr_B16004030s,
-                  db.ACS12_5yr_B16004034s, db.ACS12_5yr_B16004035s,
-                  db.ACS12_5yr_B16004039s, db.ACS12_5yr_B16004040s,
-                  db.ACS12_5yr_B16004044s, db.ACS12_5yr_B16004045s,
-                  db.ACS12_5yr_B16004051s, db.ACS12_5yr_B16004052s,
-                  db.ACS12_5yr_B16004056s, db.ACS12_5yr_B16004057s,
-                  db.ACS12_5yr_B16004061s, db.ACS12_5yr_B16004062s,
-                  db.ACS12_5yr_B16004066s, db.ACS12_5yr_B16004067s)
-QESL_sed = se_sum(db.ACS12_5yr_B16004024s, db.ACS12_5yr_B16004046s,
-                  db.ACS12_5yr_B16004025s, db.ACS12_5yr_B16004047s)
+QESL_sen = se_sum(db.ACS12_5yr_B16004029s, db.ACS12_5yr_B16004030s,db.ACS12_5yr_B16004034s, db.ACS12_5yr_B16004035s, db.ACS12_5yr_B16004039s, db.ACS12_5yr_B16004040s, db.ACS12_5yr_B16004044s, db.ACS12_5yr_B16004045s, db.ACS12_5yr_B16004051s, db.ACS12_5yr_B16004052s, db.ACS12_5yr_B16004056s, db.ACS12_5yr_B16004057s, db.ACS12_5yr_B16004061s, db.ACS12_5yr_B16004062s, db.ACS12_5yr_B16004066s, db.ACS12_5yr_B16004067s)
+QESL_sed = se_sum(db.ACS12_5yr_B16004024s, db.ACS12_5yr_B16004046s,db.ACS12_5yr_B16004025s, db.ACS12_5yr_B16004047s)
 db1['QESL_SE'] = se_prop(db1.QESL, (db.ACS12_5yr_B16004024 +
-                                    db.ACS12_5yr_B16004046) -
-                         (db.ACS12_5yr_B16004025 + db.ACS12_5yr_B16004047),
-                         QESL_sen, QESL_sed)
+                                    db.ACS12_5yr_B16004046) -(db.ACS12_5yr_B16004025 + db.ACS12_5yr_B16004047), QESL_sen, QESL_sed)
 db1.QESL_SE = db1.QESL_SE.replace([np.inf, -np.inf], 0)
 db1.QESL_SE[db1.QESL == 0] = 0
 
 QCVLUN_sen = se_sum(db.ACS12_5yr_B23022025s, db.ACS12_5yr_B23022049s)
-db1['QCVLUN_SE'] = se_prop(db1.QCVLUN, db.ACS12_5yr_B23022001,
-                           QCVLUN_sen, db.ACS12_5yr_B23022001s)
+db1['QCVLUN_SE'] = se_prop(db1.QCVLUN, db.ACS12_5yr_B23022001,QCVLUN_sen, db.ACS12_5yr_B23022001s)
 
-db1['QPOVTY_SE'] = se_prop(db1.QPOVTY, db.ACS12_5yr_B17021001,
-                           db.ACS12_5yr_B17021002s, db.ACS12_5yr_B17021001s)
-db1['QMOHO_SE'] = se_prop(db1.QMOHO, db.ACS12_5yr_B25024001,
-                          db.ACS12_5yr_B25024010s, db.ACS12_5yr_B25024001s)
+db1['QPOVTY_SE'] = se_prop(db1.QPOVTY, db.ACS12_5yr_B17021001, db.ACS12_5yr_B17021002s, db.ACS12_5yr_B17021001s)
+db1['QMOHO_SE'] = se_prop(db1.QMOHO, db.ACS12_5yr_B25024001, db.ACS12_5yr_B25024010s, db.ACS12_5yr_B25024001s)
 
-QED12LES_sen = se_sum(db.ACS12_5yr_B15002003s, db.ACS12_5yr_B15002004s,
-                      db.ACS12_5yr_B15002005s, db.ACS12_5yr_B15002006s,
-                      db.ACS12_5yr_B15002007s, db.ACS12_5yr_B15002008s,
-                      db.ACS12_5yr_B15002009s, db.ACS12_5yr_B15002010s,
-                      db.ACS12_5yr_B15002020s, db.ACS12_5yr_B15002021s,
-                      db.ACS12_5yr_B15002022s, db.ACS12_5yr_B15002023s,
-                      db.ACS12_5yr_B15002024s, db.ACS12_5yr_B15002025s,
-                      db.ACS12_5yr_B15002026s, db.ACS12_5yr_B15002027s)
+QED12LES_sen = se_sum(db.ACS12_5yr_B15002003s, db.ACS12_5yr_B15002004s, db.ACS12_5yr_B15002005s, db.ACS12_5yr_B15002006s, db.ACS12_5yr_B15002007s, db.ACS12_5yr_B15002008s, db.ACS12_5yr_B15002009s, db.ACS12_5yr_B15002010s, db.ACS12_5yr_B15002020s, db.ACS12_5yr_B15002021s, db.ACS12_5yr_B15002022s, db.ACS12_5yr_B15002023s, db.ACS12_5yr_B15002024s, db.ACS12_5yr_B15002025s, db.ACS12_5yr_B15002026s, db.ACS12_5yr_B15002027s)
 db1['QED12LES_SE'] = se_prop(db1.QED12LES, db.ACS12_5yr_B15002001,
                              QED12LES_sen, db.ACS12_5yr_B15002001s)
 
@@ -368,48 +357,34 @@ db1['QEXTRCT_SE'] = se_prop(db1.QEXTRCT, db.ACS12_5yr_C24030001,
                             QEXTRCT_sen, db.ACS12_5yr_C24030001s)
 
 QSERV_sen = se_sum(db.ACS12_5yr_C24010019s, db.ACS12_5yr_C24010055s)
-db1['QSERV_SE'] = se_prop(db1.QSERV, db.ACS12_5yr_C24010001,
-                          QSERV_sen, db.ACS12_5yr_C24010001s)
+db1['QSERV_SE'] = se_prop(db1.QSERV, db.ACS12_5yr_C24010001, QSERV_sen, db.ACS12_5yr_C24010001s)
 
-db1['QSSBEN_SE'] = se_prop(db1.QSSBEN, db.ACS12_5yr_B19055001,
-                           db.ACS12_5yr_B19055002s, db.ACS12_5yr_B19055001s)
+db1['QSSBEN_SE'] = se_prop(db1.QSSBEN, db.ACS12_5yr_B19055001, db.ACS12_5yr_B19055002s, db.ACS12_5yr_B19055001s)
 
 QNOAUTO_sen = se_sum(db.ACS12_5yr_B25044003s, db.ACS12_5yr_B25044010s)
-db1['QNOAUTO_SE'] = se_prop(db1.QNOAUTO, db.ACS12_5yr_B25044001,
-                            QNOAUTO_sen, db.ACS12_5yr_B25044001s)
+db1['QNOAUTO_SE'] = se_prop(db1.QNOAUTO, db.ACS12_5yr_B25044001, QNOAUTO_sen, db.ACS12_5yr_B25044001s)
 
-db1['QFAM_SE'] = se_prop(db1.QFAM, db.ACS12_5yr_B09002001,
-                         db.ACS12_5yr_B09002002s, db.ACS12_5yr_B09002001s)
+db1['QFAM_SE'] = se_prop(db1.QFAM, db.ACS12_5yr_B09002001, db.ACS12_5yr_B09002002s, db.ACS12_5yr_B09002001s)
 db1.QFAM_SE = db1.QFAM_SE.replace([np.inf, -np.inf], 0)
 
-db1['QRICH200K_SE'] = se_prop(db1.QRICH200K, db.ACS12_5yr_B11001001,
-                              db.ACS12_5yr_B19001017s, db.ACS12_5yr_B11001001s)
+db1['QRICH200K_SE'] = se_prop(db1.QRICH200K, db.ACS12_5yr_B11001001, db.ACS12_5yr_B19001017s, db.ACS12_5yr_B11001001s)
 
 #############################
 
 # ACS standard errors (alternatives)
-db1['PERCAP_ALT_SE'] = se_ratio(db1.PERCAP_ALT, db.ACS12_5yr_B25008001,
-                                db.ACS12_5yr_B19025001s,
-                                db.ACS12_5yr_B25008001s)
+db1['PERCAP_ALT_SE'] = se_ratio(db1.PERCAP_ALT, db.ACS12_5yr_B25008001, db.ACS12_5yr_B19025001s, db.ACS12_5yr_B25008001s)
 
 QESL_ALT_sen = se_sum(db.ACS12_5yr_B06007005s, db.ACS12_5yr_B06007008s)
-db1['QESL_ALT_SE'] = se_prop(db1.QESL_ALT, db.ACS12_5yr_B06007001,
-                             QESL_ALT_sen, db.ACS12_5yr_B06007001s)
+db1['QESL_ALT_SE'] = se_prop(db1.QESL_ALT, db.ACS12_5yr_B06007001, QESL_ALT_sen, db.ACS12_5yr_B06007001s)
 
-db1['QED12LES_ALT_SE'] = se_prop(db1.QED12LES_ALT, db.ACS12_5yr_B16010001,
-                                 db.ACS12_5yr_B16010002s, db.ACS12_5yr_B16010001s)
-db1['QEXTRCT_ALT_SE'] = se_prop(db1.QEXTRCT_ALT, db.ACS12_5yr_C24050001,
-                                db.ACS12_5yr_C24050002s, db.ACS12_5yr_C24050001s)
-db1['QSERV_ALT_SE'] = se_prop(db1.QSERV_ALT, db.ACS12_5yr_C24050001,
-                              db.ACS12_5yr_C24050029s, db.ACS12_5yr_C24050001s)
-db1['QNOAUTO_ALT_SE'] = se_prop(db1.QNOAUTO_ALT, db.ACS12_5yr_B08201001,
-                                db.ACS12_5yr_B08201002s, db.ACS12_5yr_B08201001s)
+db1['QED12LES_ALT_SE'] = se_prop(db1.QED12LES_ALT, db.ACS12_5yr_B16010001, db.ACS12_5yr_B16010002s, db.ACS12_5yr_B16010001s)
+db1['QEXTRCT_ALT_SE'] = se_prop(db1.QEXTRCT_ALT, db.ACS12_5yr_C24050001, db.ACS12_5yr_C24050002s, db.ACS12_5yr_C24050001s)
+db1['QSERV_ALT_SE'] = se_prop(db1.QSERV_ALT, db.ACS12_5yr_C24050001, db.ACS12_5yr_C24050029s, db.ACS12_5yr_C24050001s)
+db1['QNOAUTO_ALT_SE'] = se_prop(db1.QNOAUTO_ALT, db.ACS12_5yr_B08201001, db.ACS12_5yr_B08201002s, db.ACS12_5yr_B08201001s)
 db1['MDGRENT_ALT_SE'] = db.ACS12_5yr_B25064001s
 db1['MHSEVAL_ALT_SE'] = db.ACS12_5yr_B25077001s
-db1.MHSEVAL_ALT_SE[np.isnan(db1.MHSEVAL_ALT)] = db1.MHSEVAL_ALT_LAG_SE[
-    np.isnan(db1.MHSEVAL_ALT)]  # replace NA with lag
-db1.MHSEVAL_ALT_SE[np.isnan(db1.MHSEVAL_ALT_SE)] = db1.MHSEVAL_ALT_LAG_SE[
-    np.isnan(db1.MHSEVAL_ALT_SE)]  # replace NA with lag
+db1.MHSEVAL_ALT_SE[np.isnan(db1.MHSEVAL_ALT)] = db1.MHSEVAL_ALT_LAG_SE[np.isnan(db1.MHSEVAL_ALT)]  # replace NA with lag
+db1.MHSEVAL_ALT_SE[np.isnan(db1.MHSEVAL_ALT_SE)] = db1.MHSEVAL_ALT_LAG_SE[np.isnan(db1.MHSEVAL_ALT_SE)]  # replace NA with lag
 db1['POPDENS_SE'] = se_ratio(db1.POPDENS, db.SE_T02A_002,
                              db.ACS12_5yr_B01003001s,
                              0)  # these are nearly all zero since county pops tend to have 0 MOE
